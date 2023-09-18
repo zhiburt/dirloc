@@ -51,3 +51,5 @@ h/m/p/t/Cargo.toml 13
 - A flag for `prefix` to change a default space (' ')
 - A flag for sorting by name/LOC
 - `parallel` example
+- benchmarks
+- test BSD build
