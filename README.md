@@ -89,7 +89,7 @@ $ dirloc /projects/tabled /projects/expectrl | sort -k2 --numeric-sort
 
 ## TODO:
 
+- Tree like output per dir
 - ? Include built in `parallel` support
-- Include built in `sort` support
-- benchmarks
+- ? benchmarks
 - test BSD build
