@@ -1,5 +1,6 @@
 #include <sys/stat.h>
 
+#include <bits/getopt_core.h>
 #include <getopt.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -8,9 +9,20 @@
 
 #include "dirloc.h"
 
+// clang-format off
+enum file_sort_kind {
+	FILE_SORT_KIND_NONE,
+	FILE_SORT_KIND_PATH = 0x0001,
+	FILE_SORT_KIND_LOC 	= 0x0010,
+	FILE_SORT_KIND_BYTE = 0x0100,
+	FILE_SORT_KIND_DESC = 0x1000,
+};
+// clang-format on
+
 struct config {
 	bool short_path;
 	bool recursive;
+	enum file_sort_kind sort_kind;
 	char *format;
 	char **files;
 	size_t count_files;
@@ -46,7 +58,8 @@ usage(const char *name)
 	printf("\n");
 	printf("[OPTIONS]\n");
 	printf("  -r					collect files recursively\n");
-	printf("  -s, --short				shorten path to a 1 letter, except a file name\n");
+	printf("  -c					shorten path to a 1 letter, except a file name\n");
+	printf("  -s, --sort kind			sort list by [path, loc, byte, r]\n");
 	printf("  -f, --format format-string		set custom format of output (options [%%p, %%P, %%l, %%b])\n");
 	printf("  					format args:\n");
 	printf("  						%%p - path\n");
@@ -73,10 +86,11 @@ parse_args(struct config *cfg, int argc, char *argv[])
 	int c, count_opts = 0, count_files = 0;
 	char *filename = NULL;
 	bool was_file_invalid = false;
-	const char *short_opt = ":hsrf:";
+	const char *short_opt = ":hcrs:f:";
 	static struct option long_opt[] = {
 		{ "help", no_argument, NULL, 'h' },
-		{ "short", no_argument, NULL, 's' },
+		{ "sort", optional_argument, NULL, 's' },
+		{ "format", required_argument, NULL, 'f' },
 		{ "format", required_argument, NULL, 'f' },
 		{ NULL, 0, NULL, 0 },
 	};
@@ -85,13 +99,47 @@ parse_args(struct config *cfg, int argc, char *argv[])
 		switch (c) {
 		case -1: /* no more arguments */
 		case 0:	 /* long options toggles */
-			return 0;
-		case 's':
+			return (0);
+		case 'c':
 			cfg->short_path = true;
 			count_opts++;
 			break;
 		case 'r':
 			cfg->recursive = true;
+			count_opts++;
+			break;
+		case 's':
+			if (optarg != NULL) {
+				if (cfg->sort_kind != FILE_SORT_KIND_NONE &&
+				    strcmp(optarg, "r") != 0) {
+					usage_invalid_option(argv[0],
+					    argv[optind - 1]);
+					return (-1);
+				}
+
+				if (strcmp(optarg, "path") == 0) {
+					cfg->sort_kind = FILE_SORT_KIND_PATH;
+				} else if (strcmp(optarg, "loc") == 0) {
+					cfg->sort_kind = FILE_SORT_KIND_LOC;
+				} else if (strcmp(optarg, "byte") == 0) {
+					cfg->sort_kind = FILE_SORT_KIND_BYTE;
+				} else if (strcmp(optarg, "r") == 0) {
+					if (cfg->sort_kind == FILE_SORT_KIND_NONE) {
+						cfg->sort_kind |= FILE_SORT_KIND_LOC;
+					}
+
+					cfg->sort_kind |= FILE_SORT_KIND_DESC;
+				} else {
+					usage_invalid_option(argv[0],
+					    argv[optind - 1]);
+					return (-1);
+				}
+
+				count_opts++;
+			} else {
+				cfg->sort_kind |= FILE_SORT_KIND_LOC;
+			}
+
 			count_opts++;
 			break;
 		case 'f':
@@ -227,16 +275,92 @@ file_println(struct file_info *file, bool trim, const char *format)
 }
 
 int
+file_cmp_by_path(const void *a, const void *b)
+{
+	struct file_info *file_a = ((struct file_info *)a);
+	struct file_info *file_b = ((struct file_info *)b);
+
+	return (strcmp(file_a->path->value, file_b->path->value));
+}
+
+int
+file_cmp_by_path_desc(const void *a, const void *b)
+{
+	struct file_info *file_a = ((struct file_info *)a);
+	struct file_info *file_b = ((struct file_info *)b);
+
+	return (strcmp(file_b->path->value, file_a->path->value));
+}
+
+int
+file_cmp_by_loc(const void *a, const void *b)
+{
+	struct file_info *file_a = ((struct file_info *)a);
+	struct file_info *file_b = ((struct file_info *)b);
+
+	if (file_a->loc == file_b->loc)
+		return (0);
+	else if (file_a->loc < file_b->loc)
+		return (-1);
+	else
+		return (1);
+}
+
+int
+file_cmp_by_loc_desc(const void *a, const void *b)
+{
+	struct file_info *file_a = ((struct file_info *)a);
+	struct file_info *file_b = ((struct file_info *)b);
+
+	if (file_b->loc == file_a->loc)
+		return (0);
+	else if (file_b->loc < file_a->loc)
+		return (-1);
+	else
+		return (1);
+}
+
+int
+file_cmp_by_size(const void *a, const void *b)
+{
+	struct file_info *file_a = ((struct file_info *)a);
+	struct file_info *file_b = ((struct file_info *)b);
+
+	if (file_a->file_size == file_b->file_size)
+		return (0);
+	else if (file_a->file_size < file_b->file_size)
+		return (-1);
+	else
+		return (1);
+}
+
+int
+file_cmp_by_size_desc(const void *a, const void *b)
+{
+	struct file_info *file_a = ((struct file_info *)a);
+	struct file_info *file_b = ((struct file_info *)b);
+
+	if (file_b->file_size == file_a->file_size)
+		return (0);
+	else if (file_b->file_size < file_a->file_size)
+		return (-1);
+	else
+		return (1);
+}
+
+int
 main(int argc, char *argv[])
 {
-	int err;
+	int count_files, desc_sort, err;
+	int (*comparator)(const void *, const void *);
 	struct file_iterator *iter;
-	struct file_info *file;
+	struct file_info *file, *files;
 	struct config cfg = {
 		.recursive = false,
 		.short_path = false,
 		.files = NULL,
 		.format = NULL,
+		.sort_kind = FILE_SORT_KIND_NONE,
 		.count_files = 0,
 	};
 
@@ -249,18 +373,55 @@ main(int argc, char *argv[])
 		return (0);
 	}
 
-	iter = file_iterator_create(cfg.files, cfg.recursive);
-	if (iter == NULL) {
-		return (-1);
-	}
+	if (cfg.sort_kind == FILE_SORT_KIND_NONE) {
+		iter = file_iterator_create(cfg.files, cfg.recursive);
+		if (iter == NULL) {
+			return (-1);
+		}
 
-	while ((file = file_iterator_next(iter))) {
-		file_println(file, cfg.short_path, cfg.format);
-	}
+		while ((file = file_iterator_next(iter))) {
+			file_println(file, cfg.short_path, cfg.format);
+		}
 
-	err = file_iterator_free(iter);
-	if (err < 0) {
-		return (err);
+		err = file_iterator_free(iter);
+		if (err < 0) {
+			return (err);
+		}
+	} else {
+		count_files = collect_files(&files, cfg.files, cfg.recursive);
+		if (count_files < 0) {
+			return (count_files);
+		}
+
+		desc_sort = cfg.sort_kind & FILE_SORT_KIND_DESC;
+		switch (cfg.sort_kind & ~(uint)FILE_SORT_KIND_DESC) {
+		case FILE_SORT_KIND_PATH:
+			comparator = desc_sort ? file_cmp_by_path_desc :
+						 file_cmp_by_path;
+			break;
+		case FILE_SORT_KIND_LOC:
+			comparator = desc_sort ? file_cmp_by_loc_desc :
+						 file_cmp_by_loc;
+			break;
+		case FILE_SORT_KIND_BYTE:
+			comparator = desc_sort ? file_cmp_by_size_desc :
+						 file_cmp_by_size;
+			break;
+		}
+
+		qsort(files, (size_t)count_files, sizeof(struct file_info),
+		    comparator);
+
+		for (int i = 0; i < count_files; i++) {
+			file = files + i;
+
+			file_println(file, cfg.short_path, cfg.format);
+
+			free(file->path->value);
+			free(file->path);
+		}
+
+		free(files);
 	}
 
 	if (cfg.files != NULL)

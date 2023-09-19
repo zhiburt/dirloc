@@ -3,14 +3,15 @@
 A simple way to count LOC with batteries included.
 
 ```bash
-Usage: dirloc [OPTIONS] [ARGS]
+Usage: ./dirloc [OPTIONS] [ARGS]
 
 [ARGS]
 expected to get a list of files, folders
 
 [OPTIONS]
   -r                                    collect files recursively
-  -s, --short                           shorten path to a 1 letter, except a file name
+  -c                                    shorten path to a 1 letter, except a file name
+  -s, --sort kind                       sort list by [path, loc, byte, r]
   -f, --format format-string            set custom format of output (options [%p, %P, %l, %b])
                                         format args:
                                                 %p - path
