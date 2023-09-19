@@ -87,9 +87,9 @@ $ dirloc /projects/tabled /projects/expectrl | sort -k2 --numeric-sort
 /projects/tabled/README.md 2092
 ```
 
-## TODO:
+### TODO
 
 - Tree like output per dir
+- test BSD build
 - ? Include built in `parallel` support
 - ? benchmarks
-- test BSD build

@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <signal.h>
 
 #include "dirloc.h"
 
@@ -27,6 +28,14 @@ struct config {
 	char **files;
 	size_t count_files;
 };
+
+static volatile sig_atomic_t sig_shutdown = 0;
+
+void sig_ctrlc_handler(int _signal) {
+	(void)_signal;
+
+	sig_shutdown = 1;
+}
 
 void
 usage_invalid_option(const char *name, const char *opt)
@@ -363,6 +372,12 @@ main(int argc, char *argv[])
 		.sort_kind = FILE_SORT_KIND_NONE,
 		.count_files = 0,
 	};
+	struct sigaction act;
+
+	sigemptyset(&act.sa_mask);
+	act.sa_flags = 0;
+	act.sa_handler = sig_ctrlc_handler;
+	sigaction(SIGINT, &act, NULL);
 
 	err = parse_args(&cfg, argc, argv);
 	if (err < 0) {
@@ -380,6 +395,10 @@ main(int argc, char *argv[])
 		}
 
 		while ((file = file_iterator_next(iter))) {
+			if (sig_shutdown) {
+				break;
+			}
+
 			file_println(file, cfg.short_path, cfg.format);
 		}
 
