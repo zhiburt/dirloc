@@ -3,16 +3,22 @@
 A simple way to count LOC with batteries included.
 
 ```bash
-Usage: ./dirloc [OPTIONS] [ARGS]
+Usage: dirloc [OPTIONS] [ARGS]
 
 [ARGS]
 expected to get a list of files, folders
 
 [OPTIONS]
-  -s                                            shorten path to a 1 letter, except a file name
-  -r                                            collect files recursively
-  -f file                                       file
-  -h, --help                                    print this help and exit
+  -r                                    collect files recursively
+  -s, --short                           shorten path to a 1 letter, except a file name
+  -f, --format format-string            set custom format of output (options [%p, %P, %l, %b])
+                                        format args:
+                                                %p - path
+                                                %P - path short
+                                                %l - lines of code
+                                                %b - byte size
+
+  -h, --help                            print this help and exit
 ```
 
 # Usage
@@ -82,8 +88,7 @@ $ dirloc /projects/tabled /projects/expectrl | sort -k2 --numeric-sort
 
 ## TODO:
 
-- A flag for `prefix` to change a default space (' ')
-- Include built in `parallel` support
+- ? Include built in `parallel` support
 - Include built in `sort` support
 - benchmarks
 - test BSD build

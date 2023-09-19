@@ -11,6 +11,7 @@
 struct config {
 	bool short_path;
 	bool recursive;
+	char *format;
 	char **files;
 	size_t count_files;
 };
@@ -37,17 +38,25 @@ log_io_file(const char *file, const char *reason)
 void
 usage(const char *name)
 {
+	// clang-format off
 	printf("Usage: %s [OPTIONS] [ARGS]\n", name);
 	printf("\n");
 	printf("[ARGS]\n");
 	printf("expected to get a list of files, folders\n");
 	printf("\n");
 	printf("[OPTIONS]\n");
-	printf("  -s						shorten path to a 1 letter, except a file name\n");
-	printf("  -r						collect files recursively\n");
-	printf("  -f file					file\n");
-	printf("  -h, --help					print this help and exit\n");
+	printf("  -r					collect files recursively\n");
+	printf("  -s, --short				shorten path to a 1 letter, except a file name\n");
+	printf("  -f, --format format-string		set custom format of output (options [%%p, %%P, %%l, %%b])\n");
+	printf("  					format args:\n");
+	printf("  						%%p - path\n");
+	printf("  						%%P - path short\n");
+	printf("  						%%l - lines of code\n");
+	printf("  						%%b - byte size\n");
 	printf("\n");
+	printf("  -h, --help				print this help and exit\n");
+	printf("\n");
+	// clang-format on
 }
 
 bool
@@ -64,10 +73,11 @@ parse_args(struct config *cfg, int argc, char *argv[])
 	int c, count_opts = 0, count_files = 0;
 	char *filename = NULL;
 	bool was_file_invalid = false;
-	const char *short_opt = ":hsr";
+	const char *short_opt = ":hsrf:";
 	static struct option long_opt[] = {
 		{ "help", no_argument, NULL, 'h' },
 		{ "short", no_argument, NULL, 's' },
+		{ "format", required_argument, NULL, 'f' },
 		{ NULL, 0, NULL, 0 },
 	};
 
@@ -78,9 +88,15 @@ parse_args(struct config *cfg, int argc, char *argv[])
 			return 0;
 		case 's':
 			cfg->short_path = true;
+			count_opts++;
 			break;
 		case 'r':
 			cfg->recursive = true;
+			count_opts++;
+			break;
+		case 'f':
+			cfg->format = optarg;
+			count_opts += 2;
 			break;
 		case 'h':
 			usage(argv[0]);
@@ -94,8 +110,6 @@ parse_args(struct config *cfg, int argc, char *argv[])
 		default:
 			return (-1);
 		};
-
-		count_opts++;
 	};
 
 	if (count_opts + 1 == argc) {
@@ -127,32 +141,89 @@ parse_args(struct config *cfg, int argc, char *argv[])
 }
 
 void
-file_println(struct file_info *file, bool trim)
+file_println_path(char *value, bool trim)
 {
-	char* path;
-	char* path_next;
+	char *path;
+	char *path_next;
 
-	if (trim) {
-		path = strtok(file->path->value, "/");
-		path_next = strtok(NULL, "/");
+	if (!trim) {
+		printf("%s", value);
+		return;
+	}
 
-		while (path_next != NULL) {
-			if (strcmp(path, ".") == 0) {
-				printf("./");
-			} else if (strcmp(path, "..") == 0) {
-				printf("../");
-			} else {
-				printf("%c/", path[0]);
-			}
+	path = strtok(value, "/");
+	path_next = strtok(NULL, "/");
 
-			path = path_next;
-			path_next = strtok(NULL, "/");
+	while (path_next != NULL) {
+		if (strcmp(path, ".") == 0) {
+			printf("./");
+		} else if (strcmp(path, "..") == 0) {
+			printf("../");
+		} else {
+			printf("%c/", path[0]);
 		}
 
-		printf("%s %ld\n", path, file->loc);
-	} else {
-		printf("%s %ld\n", file->path->value, file->loc);
+		path = path_next;
+		path_next = strtok(NULL, "/");
 	}
+
+	printf("%s", path);
+}
+
+void
+file_println(struct file_info *file, bool trim, const char *format)
+{
+	if (format == NULL) {
+		file_println_path(file->path->value, trim);
+		printf(" %ld\n", file->loc);
+		return;
+	}
+
+	for (char c = *format; c != '\0'; c = *++format) {
+		switch (c) {
+		case '\\':
+			format++;
+			switch (*format) {
+			case 't':
+				printf("\t");
+				break;
+			case 'n':
+				printf("\n");
+				break;
+			default:
+				putchar('\\');
+				putchar(c);
+				break;
+			}
+			break;
+		case '%':
+			format++;
+			switch (*format) {
+			case 'P':
+				file_println_path(file->path->value, true);
+				break;
+			case 'p':
+				file_println_path(file->path->value, false);
+				break;
+			case 'l':
+				printf("%ld", file->loc);
+				break;
+			case 'b':
+				printf("%ld", file->file_size);
+				break;
+			default:
+				putchar('%');
+				putchar(*format);
+				break;
+			}
+			break;
+		default:
+			putchar(c);
+			break;
+		}
+	}
+
+	putchar('\n');
 }
 
 int
@@ -165,6 +236,7 @@ main(int argc, char *argv[])
 		.recursive = false,
 		.short_path = false,
 		.files = NULL,
+		.format = NULL,
 		.count_files = 0,
 	};
 
@@ -182,8 +254,8 @@ main(int argc, char *argv[])
 		return (-1);
 	}
 
-	while((file = file_iterator_next(iter))) {
-		file_println(file, cfg.short_path);
+	while ((file = file_iterator_next(iter))) {
+		file_println(file, cfg.short_path, cfg.format);
 	}
 
 	err = file_iterator_free(iter);
