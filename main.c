@@ -1,12 +1,11 @@
 #include <sys/stat.h>
 
-#include <bits/getopt_core.h>
 #include <getopt.h>
+#include <signal.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <signal.h>
 
 #include "dirloc.h"
 
@@ -31,7 +30,9 @@ struct config {
 
 static volatile sig_atomic_t sig_shutdown = 0;
 
-void sig_ctrlc_handler(int _signal) {
+void
+sig_ctrlc_handler(int _signal)
+{
 	(void)_signal;
 
 	sig_shutdown = 1;
@@ -133,8 +134,10 @@ parse_args(struct config *cfg, int argc, char *argv[])
 				} else if (strcmp(optarg, "byte") == 0) {
 					cfg->sort_kind = FILE_SORT_KIND_BYTE;
 				} else if (strcmp(optarg, "r") == 0) {
-					if (cfg->sort_kind == FILE_SORT_KIND_NONE) {
-						cfg->sort_kind |= FILE_SORT_KIND_LOC;
+					if (cfg->sort_kind ==
+					    FILE_SORT_KIND_NONE) {
+						cfg->sort_kind |=
+						    FILE_SORT_KIND_LOC;
 					}
 
 					cfg->sort_kind |= FILE_SORT_KIND_DESC;
